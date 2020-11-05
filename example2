@@ -1,0 +1,105 @@
+import cv2
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+import os 
+from skimage.filters import threshold_yen
+from skimage.exposure import rescale_intensity
+from skimage.io import imread, imsave
+import math
+
+# Root directory
+root_dir="D:/Documents/ArtifactDetection"
+
+# Directory locations
+x1 = "XXXXX"
+x2 = "XXXXX"
+x3 = "XXXXX"
+x4 = "XXXXX"
+x5 = "XXXXX"
+x6 = "XXXXX"
+
+this_dir = x1
+
+# 1
+for f in os.listdir(root_dir + this_dir):
+  if os.path.isdir(root_dir + this_dir + "/" + f):
+    this_img_fn = root_dir + this_dir + "/" + f + "/file.tiff"
+    print(this_img_fn , os.path.exists(this_img_fn))
+    this_img = cv2.imread(this_img_fn, -1)
+    this_plot, n_contours = analyzeArtifacts(this_img, f)
+    plt.savefig(root_dir + this_dir + "/" + f + "_1.tiff", 
+      bbox_inches='tight', dpi=300)
+
+# 2
+for f in os.listdir(root_dir + this_dir):
+  if os.path.isdir(root_dir + this_dir + "/" + f):
+    this_img_fn = root_dir + this_dir + "/" + f + \
+      "/dir1/dir2/dir3/dir4/file.tiff"
+    print(this_img_fn , os.path.exists(this_img_fn))
+    this_img = cv2.imread(this_img_fn, -1)
+    this_plot, n_contours = analyzeArtifacts(this_img, f)
+    plt.savefig(root_dir + this_dir + "/" + f + "_2.tiff", 
+      bbox_inches='tight', dpi=300)
+
+plt.close("all")
+
+def analyzeArtifacts(img_full, title):
+  # XXXXX
+  img_y = img_full.shape[0]
+  img_x = img_full.shape[1]
+  lower_y = int(img_y/2-840)
+  upper_y = int(img_y/2-710)
+  left_x = 0
+  right_x = img_x
+  img = img_full[lower_y:upper_y,left_x:right_x]
+  # Adjust threshold for plotting purposes only
+  yen_threshold = threshold_yen(img)
+  img_auto = rescale_intensity(img, (0, yen_threshold), (0, 255))
+  # Convert image from 16-bit to 8-bit
+  img8 = (img/256).astype('uint8')
+  # Blur
+  img_enh = cv2.medianBlur(img8, 3)
+  # Threshold
+  ret, img_enh = cv2.threshold(img_enh,0,255,cv2.THRESH_BINARY)
+  # Invert so spots are black
+  img_enh = cv2.bitwise_not(img_enh)
+  # Find contours
+  _, contours, _ = cv2.findContours(img_enh, 
+    cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+  areas = []
+  shape_factor_list = []
+  approx_len_list = []
+  for i in range(0, len(contours)):
+    this_area = cv2.contourArea(contours[i])
+    this_perim = cv2.arcLength(contours[i], True)
+    if this_perim == 0:
+      continue    
+    approx = cv2.approxPolyDP(contours[i],0.01*this_perim,True)
+    shape_factor = 4 * math.pi * this_area / math.pow(this_perim,2)
+    if shape_factor > 0.85 and len(approx) != 4:
+      if this_area > 5 and this_area < 150:
+        approx_len_list.append(len(approx))
+        shape_factor_list.append(shape_factor)
+        # Create a mask image that contains the contour filled in
+        cimg = np.zeros_like(img_enh)
+        cv2.drawContours(cimg, contours, i, color=255, thickness=-1)
+        # Access the image pixels and create a 1D numpy array then add to list
+        pts = np.where(cimg == 255)
+        this_medint = np.max(img8[pts[0], pts[1]])
+        if this_medint > np.quantile(img8, 0.95):
+          areas.append([i, this_area])
+  # Draw contours
+  img_enh_contours = cv2.drawContours(img_auto, [contours[f[0]] for f in areas], -1, (0,255,0), 1)
+  # Plot raw images
+  f, axarr = plt.subplots(3, 1, figsize=(16,5))
+  axarr[0].imshow(img_auto, cmap = "gray")
+  axarr[0].set_title(title + ", Raw")
+  axarr[1].imshow(img_enh, cmap = "gray")
+  axarr[1].set_title(title + ", Thresholded")
+  axarr[2].imshow(img_enh_contours)
+  axarr[2].set_title(title + ", " + str(len(areas)) + " Contours")
+  print(str(len(areas)) + " Contours Found in " + title)
+  return(axarr, len(areas))
+
+
