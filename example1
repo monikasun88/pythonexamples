@@ -45,4 +45,4 @@ if __name__ == '__main__':
 	# Set variables
 	file_dir = args["file_dir"]
 
-	mc_convert_hdf5_to_csv(file_dir)
+	convert_hdf5_to_csv(file_dir)
