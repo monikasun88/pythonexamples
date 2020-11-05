@@ -1,0 +1,48 @@
+from pandas import HDFStore
+import sys
+import argparse
+import os
+import re
+import warnings
+import tables
+
+def convert_hdf5_to_csv(file_dir):
+
+	# Ignore natural name warnings
+	warnings.simplefilter('ignore', tables.NaturalNameWarning)
+
+	if os.path.isfile(file_dir):
+		file_dir_list = [file_dir]
+		store = HDFStore(file_dir)
+		store['Data'].to_csv(file_dir+".csv")
+		store.close()
+		print("File converted: " + file_dir + ".csv")
+	elif os.path.isdir(file_dir):
+		file_dir_list = [f for f in os.listdir(file_dir) \
+			if re.search("XXXXX", f)]
+		for f in file_dir_list:
+			print("Converting " + f + "...")
+			store = HDFStore(file_dir+"/"+f)
+			store['Data'].to_csv(file_dir+"/"+f+".csv")
+			store.close()
+		print(str(len(file_dir_list)) \
+			+ " files converted found in directory: " \
+			+ file_dir)
+	else:
+		raise Exception("Not a valid file or directory")
+
+	return file_dir
+
+if __name__ == '__main__':
+
+	ap = argparse.ArgumentParser()
+
+	ap.add_argument("-fd", "--file_dir", required=True,
+		help="file or directory to convert")
+
+	args = vars(ap.parse_args())
+
+	# Set variables
+	file_dir = args["file_dir"]
+
+	mc_convert_hdf5_to_csv(file_dir)
